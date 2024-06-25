@@ -1,118 +1,125 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 
 const Spreadsheet = () => {
-  const [users, setUsers] = useState([]);
-  const [columns, setColumns] = useState(['name', 'email', 'age']);
+  const [rows, setRows] = useState([1, 2, 3, 4]);
+  const [columns, setColumns] = useState(['A', 'B', 'C', 'D']);
+  const [data, setData] = useState({});
+  const [editing, setEditing] = useState(null); // Track the cell being edited
+  const [activeCell, setActiveCell] = useState(null); // Track the active cell
+  const [activeRow, setActiveRow] = useState(null); // Track the active row
+  const [activeColumn, setActiveColumn] = useState(null); // Track the active column
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const addRow = () => {
+    setRows([...rows, rows.length + 1]);
+  };
 
-  const fetchUsers = async () => {
-    try {
-      const response = await axios.get('http://localhost:3001/users');
-      setUsers(response.data);
-    } catch (error) {
-      console.error('An error occurred while fetching users:', error);
+  const addColumn = () => {
+    const lastColumn = columns[columns.length - 1];
+      let nextColumn;
+      if (lastColumn.length === 1) {
+        if (lastColumn === 'Z') {
+          nextColumn = 'AA';
+        } else {
+          const nextChar = String.fromCharCode(lastColumn.charCodeAt(0) + 1);
+          nextColumn = nextChar;
+        }
+      } else {
+        const lastChar = lastColumn.charAt(lastColumn.length - 1);
+        let lastCharNum = lastChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+        let lastCharPrefix = lastColumn.substring(0, lastColumn.length - 1);
+  
+        if (lastCharNum === 26) {
+          lastCharNum = 1;
+          const nextPrefixChar = String.fromCharCode(lastCharPrefix.charCodeAt(0) + 1);
+          lastCharPrefix = nextPrefixChar;
+        } else {
+          lastCharNum++;
+        }
+  
+        nextColumn = `${lastCharPrefix}${String.fromCharCode(lastCharNum + 'A'.charCodeAt(0) - 1)}`;
       }
+    setColumns([...columns, nextColumn]);
   };
 
-  const handleAddRow = async () => {
-    const newUser = { name: '', email: '', age: null, additionalInfo: {} };
-    try {
-      const response = await axios.post('http://localhost:3001/users', newUser);
-      setUsers([...users, response.data]);
-    } catch (error) {
-      console.error('An error occurred while adding a new row:', error);
-    }
+  const handleDoubleClick = (row, col) => {
+    setEditing({ row, col });
+    setActiveCell({ row, col });
+    setActiveRow(row);
+    setActiveColumn(col);
   };
 
-  const handleAddColumn = () => {
-    const newColumn = prompt('Enter new column name');
-    if (newColumn && !columns.includes(newColumn)) {
-      setColumns([...columns, newColumn]);
-    }
+  const handleClick = (row, col) => {
+    setActiveCell({ row, col });
+    setActiveRow(row);
+    setActiveColumn(col);
   };
 
-  const handleDeleteRow = async (id) => {
-    if (window.confirm('Are you sure you want to delete this row?')) {
-      try {
-        await axios.delete(`http://localhost:3001/users/${id}`);
-        fetchUsers();
-      } catch (error) {
-        console.error('An error occurred while deleting the row:', error);
-      }
-    }
+  const handleChange = (e, row, col) => {
+    setData({ ...data, [`${row}${col}`]: e.target.value });
   };
 
-  const handleDeleteColumn = (column) => {
-    if (window.confirm(`Are you sure you want to delete the column "${column}"?`)) {
-      setColumns(columns.filter(col => col !== column));
-    }
+  const handleBlur = () => {
+    setEditing(null);
   };
 
-  const handleCellChange = async (id, column, value) => {
-    const user = users.find(user => user.id === id);
-    if (column in user) {
-      user[column] = value;
-    } else {
-      user.additionalInfo[column] = value;
-    }
-    try {
-      await axios.put(`http://localhost:3001/users/${id}`, user);
-      fetchUsers();
-    } catch (error) {
-      console.error('An error occurred while updating the cell:', error);
-    }
-  };
-
-  const renderCell = (user, column) => {
-    const value = column in user ? user[column] : user.additionalInfo?.[column] || '';
-    return (
-      <td key={column} onDoubleClick={() => handleCellEdit(user.id, column, value)}>
-        {value}
-      </td>
-    );
-  };
-
-  const handleCellEdit = (id, column, value) => {
-    const newValue = prompt(`Edit ${column}`, value);
-    if (newValue !== null) {
-      handleCellChange(id, column, newValue);
+  const deleteCell = () => {
+    if (activeCell) {
+      const newData = { ...data };
+      delete newData[`${activeCell.row}${activeCell.col}`];
+      setData(newData);
+      setActiveCell(null);
     }
   };
 
   return (
-    <div>
-      <table className="min-w-full divide-y divide-gray-200">
+    <div className="p-4 overflow-x-auto">
+      <div className="mb-2">
+        <button onClick={addRow} className="text-green-500 font-bold mr-4">+ Add Row</button>
+        <button onClick={addColumn} className="text-blue-500 font-bold">+ Add Column</button>
+        {activeCell && (
+          <button onClick={deleteCell} className="text-red-500 font-bold ml-4">Delete Cell</button>
+        )}
+      </div>
+      <table className="min-w-full border-collapse border border-gray-300">
         <thead>
           <tr>
-            {columns.map(column => (
-              <th key={column} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {column}
-                <button onClick={() => handleDeleteColumn(column)} className="ml-2 text-red-500">x</button>
+            <th className="border border-gray-300 px-4 py-2"></th>
+            {columns.map((col) => (
+              <th key={col} className={`border border-gray-300 px-4 py-2 text-center ${activeColumn === col ? 'bg-blue-100' : ''}`}>
+                {col}
               </th>
             ))}
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              <button onClick={handleAddColumn} className="text-green-500">+</button>
-            </th>
           </tr>
         </thead>
         <tbody>
-          {users.map(user => (
-            <tr key={user.id}>
-              {columns.map(column => renderCell(user, column))}
-              <td>
-                <button onClick={() => handleDeleteRow(user.id)} className="text-red-500">Delete</button>
-              </td>
+          {rows.map((row) => (
+            <tr key={row}>
+              <th className={`border border-gray-300 px-4 py-2 text-center ${activeRow === row ? 'bg-blue-100' : ''}`}>
+                {row}
+              </th>
+              {columns.map((col) => (
+                <td
+                  key={col}
+                  className={`border border-gray-300 px-4 py-2 text-center ${activeCell && activeCell.row === row && activeCell.col === col ? 'bg-blue-200' : ''}`}
+                  onDoubleClick={() => handleDoubleClick(row, col)}
+                  onClick={() => handleClick(row, col)}
+                >
+                  {editing && editing.row === row && editing.col === col ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={data[`${row}${col}`] || ''}
+                      onChange={(e) => handleChange(e, row, col)}
+                      onBlur={handleBlur}
+                      className="w-full h-full text-center"
+                    />
+                  ) : (
+                    data[`${row}${col}`] || ''
+                  )}
+                </td>
+              ))}
             </tr>
           ))}
-          <tr>
-            <td colSpan={columns.length}>
-              <button onClick={handleAddRow} className="text-green-500">Add Row</button>
-            </td>
-          </tr>
         </tbody>
       </table>
     </div>
@@ -120,3 +127,4 @@ const Spreadsheet = () => {
 };
 
 export default Spreadsheet;
+
